@@ -3,7 +3,13 @@ __pycache__
 
 ESC-50-master
 hwork4/
+features/
 
+dsp/mfcc_cuda.py
 
 *md
-*npy
+*npz
+*pt
+
+
+test.py
