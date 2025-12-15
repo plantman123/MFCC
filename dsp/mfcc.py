@@ -89,12 +89,14 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=1
     fb = mel_filterbank(sr, frame_len, n_mels)
     mel_energy = np.dot(power_spec, fb.T)
 
-    # 4. 取对数 (避免log(0)加上微小值)
+    # 取对数
     mel_energy = np.where(mel_energy == 0, 1e-10, mel_energy)
     log_mel = np.log(mel_energy)
 
-    # 5. 离散余弦变换 (DCT) 提取MFCC系数
-    mfcc_feat = np.array([dct(frame, n_ceps) for frame in log_mel])
+    # DCT提取MFCC特征
+    mfcc_feature = np.array([dct(frame, n_ceps) for frame in log_mel])
 
-    return mfcc_feat
+    # 归一化
+    mfcc_norm = (mfcc - np.mean(mfcc_feature, axis=0) + 1e-8)
+    return mfcc_norm
 
