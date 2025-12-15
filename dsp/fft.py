@@ -8,6 +8,13 @@ def fft_loop(x):
     if N <= 1:
         return x
 
+    # 如果不是2的幂，回退到DFT
+    if (N & (N - 1)) != 0:
+        n = np.arange(N)
+        k = n.reshape((N, 1))
+        M = np.exp(-2j * np.pi * k * n / N)
+        return np.dot(M, x)
+
     log_N = int(np.log2(N))
     n = np.arange(N)
     rev = np.zeros(N, dtype=int)
