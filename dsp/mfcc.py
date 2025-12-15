@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from .stft import stft
 
 
@@ -28,12 +29,12 @@ def mel_filterbank(sr, n_fft, n_mels):
     mel_max = hz_mel_transform(f_max)
 
     # 在Mel刻度上均匀取点
-    mel_points = np.linspace(mel_min, mel_max, n_mels + 2)
+    mel_points = torch.linspace(mel_min, mel_max, n_mels + 2)
     hz_points = hz_mel_transform(mel_points, True)
 
     # 将Hz频率转换为FFT bin索引
-    bins = np.floor((n_fft + 1) * hz_points / sr).astype(int)
-    filterbank = np.zeros((n_mels, n_fft // 2))
+    bins = torch.floor((n_fft + 1) * hz_points / sr).long()
+    filterbank = torch.zeros((n_mels, int((n_fft // 2))))
 
     # 构建三角滤波器
     for i in range(1, n_mels + 1):
@@ -50,21 +51,19 @@ def mel_filterbank(sr, n_fft, n_mels):
 
 def dct(x, num_ceps):
     """
-    离散余弦变换 (DCT-II)
-    x: 输入信号
+    离散余弦变换
+    x: 输入信号 (Tensor) [..., N]
     num_ceps: 保留的倒谱系数个数
-    :return: DCT变换结果
+    :return: DCT变换结果 [..., num_ceps]
     """
-    N = len(x)
-    result = np.zeros(num_ceps)
-
-    for k in range(num_ceps):
-        for n in range(N):
-            result[k] += x[n] * np.cos(np.pi * k * (2*n + 1) / (2 * N))
-    return result
+    N = x.shape[-1]
+    k = torch.arange(num_ceps, device=x.device, dtype=x.dtype).unsqueeze(1)
+    n = torch.arange(N, device=x.device, dtype=x.dtype).unsqueeze(0)
+    dct_matrix = torch.cos(np.pi * k * (2 * n + 1) / (2 * N))
+    return torch.matmul(x, dct_matrix.T)
 
 
-def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=13):
+def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=13, device="cuda:0"):
     """
     计算MFCC特征
     signal: 输入音频信号
@@ -79,24 +78,32 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=1
     # signal[i] = signal[i] - alpha * signal[i-1]
     signal = np.append(signal[0], signal[1:] - alpha_emphasis * signal[:-1])
 
+    # 数据预处理
+    if not isinstance(signal, torch.Tensor):
+        signal = torch.tensor(signal)
+    # 注意：.to() 不是原地操作，必须赋值回去
+    signal = signal.to(device)
+
     # stft(同时进行加窗分帧)
-    spec = stft(signal, frame_len, hop_len)
+    # 传递 device 参数给 stft
+    spec = stft(signal, frame_len, hop_len, device=device)
 
     # 功率谱
     power_spec = spec ** 2
 
     # 应用Mel滤波器组
-    fb = mel_filterbank(sr, frame_len, n_mels)
-    mel_energy = np.dot(power_spec, fb.T)
+    fb = mel_filterbank(sr, frame_len, n_mels).to(device)
+    mel_energy = torch.matmul(power_spec, fb.T)
 
     # 取对数
-    mel_energy = np.where(mel_energy == 0, 1e-10, mel_energy)
-    log_mel = np.log(mel_energy)
+    mel_energy = torch.where(mel_energy == 0, torch.tensor(1e-10, device=device), mel_energy)
+    log_mel = torch.log(mel_energy)
 
     # DCT提取MFCC特征
-    mfcc_feature = np.array([dct(frame, n_ceps) for frame in log_mel])
+    # 直接对整个 batch 进行 DCT
+    mfcc_feature = dct(log_mel, n_ceps)
 
     # 归一化
-    mfcc_norm = (mfcc - np.mean(mfcc_feature, axis=0) + 1e-8)
+    mfcc_norm = (mfcc_feature - torch.mean(mfcc_feature, dim=0) + 1e-8)
     return mfcc_norm
 

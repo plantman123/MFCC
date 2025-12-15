@@ -1,59 +1,68 @@
+import torch
 import numpy as np
 
 
-def fft_loop(x):
-    x = np.asarray(x, dtype=np.complex128)
-    N = x.shape[0]
+def fft_loop(x, device="cuda:0"):
+    if not isinstance(x, torch.Tensor):
+        x = torch.tensor(x)
+    x = x.to(torch.complex64)
+    x = x.to(device) 
+    if x.dim() == 1:
+        x = x.unsqueeze(0)
+    
+    batch_size, N = x.shape
 
     if N <= 1:
-        return x
-
-    # 如果不是2的幂，回退到DFT
+        return x.squeeze(0)
+    
+    # 回退DFT
     if (N & (N - 1)) != 0:
-        n = np.arange(N)
-        k = n.reshape((N, 1))
-        M = np.exp(-2j * np.pi * k * n / N)
-        return np.dot(M, x)
+        n = torch.arange(N, device=device, dtype=torch.float32)
+        k = n.view(N, 1)
+        M = torch.exp(-2j * np.pi * k * n / N)    
+        return torch.matmul(x, M).squeeze(0)
 
     log_N = int(np.log2(N))
-    n = np.arange(N)
-    rev = np.zeros(N, dtype=int)
+    n = torch.arange(N, device=device, dtype=torch.long)
+    rev = torch.zeros(N, device=device, dtype=torch.long)
     for i in range(log_N):
         rev |= ((n >> i) & 1) << (log_N - 1 - i)
     
-    X = x[rev]
-
+    X = x[:, rev]
     for s in range(1, log_N + 1):
         m = 1 << s
         m2 = m >> 1
-        w = np.exp(-2j * np.pi * np.arange(m2) / m)
-        X_reshaped = X.reshape(-1, m)
-        u = X_reshaped[:, :m2]
-        t = w * X_reshaped[:, m2:]
+        w = torch.exp(-2j * torch.pi * torch.arange(m2, device=device) / m)
+        X_reshaped = X.view(batch_size, -1, m)
+        
+        u = X_reshaped[:, :, :m2]
+        t = w * X_reshaped[:, :, m2:]
         
         u_plus_t = u + t
         u_minus_t = u - t
+        X_new = torch.cat([u_plus_t, u_minus_t], dim=2)
+        X = X_new.view(batch_size, N)
         
-        X_reshaped[:, :m2] = u_plus_t
-        X_reshaped[:, m2:] = u_minus_t
-        
-    return X
+    return X.squeeze(0)
 
 
-def fft_recursive(x):
-    x = np.asarray(x, dtype=np.complex128)
+def fft_recursive(x, device="cuda:0"):
+    x = torch.asarray(x, dtype=torch.complex128)
     N = x.shape[0]
     if N == 1:
         return x
-    if N % 2 != 0:
-        raise ValueError("Input length must be power of 2")
+    if (N & (N - 1)) != 0:
+        n = torch.arange(N, device=device, dtype=torch.float32)
+        k = n.view(N, 1)
+        M = torch.exp(-2j * np.pi * k * n / N)
+        return torch.matmul(x, M).squeeze(0)
 
     X_even = fft_recursive(x[::2])
     X_odd = fft_recursive(x[1::2])
 
-    factor = np.exp(-2j * np.pi * np.arange(N) / N)
+    factor = torch.exp(-2j * torch.pi * torch.arange(N) / N)
 
-    X = np.zeros(N, dtype=np.complex128)
+    X = torch.zeros(N, dtype=torch.complex128)
     half = N // 2
     X[:half] = X_even + factor[:half] * X_odd
     X[half:] = X_even + factor[half:] * X_odd
