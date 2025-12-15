@@ -23,6 +23,6 @@ def stft(signal, frame_len, hop_len):
         spectrum = fft_loop(frame)
         magnitude = np.abs(spectrum[:frame_len // 2])
         stft_matrix.append(magnitude)
-
+        
     return np.array(stft_matrix)
 
