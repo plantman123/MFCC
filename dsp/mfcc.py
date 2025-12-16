@@ -3,23 +3,23 @@ import torch
 from .stft import stft
 
 
-def hz_mel_transform(s, reverse=False):
+def hz_mel_transform(sr, reverse=False):
     """
     Mel频率与Hz频率的转换
-    s: 输入频率
+    sr:      采样率
     reverse: 默认hz转mel
     """
     if reverse:
-        return 700 * (10**(s / 2595) - 1)
-    return 2595 * np.log10(1 + s / 700)
+        return 700 * (10**(sr / 2595) - 1)
+    return 2595 * np.log10(1 + sr / 700)
 
 
 def mel_filterbank(sr, n_fft, n_mels):
     """
     创建Mel滤波器组
-    sr: 采样率
-    n_fft: FFT点数
-    n_mels: Mel滤波器个数
+    sr:      采样率
+    n_fft:   FFT点数
+    n_mels:  Mel滤波器个数
     :return: 滤波器组矩阵 (n_mels, n_fft//2)
     """
     f_min = 0
@@ -34,6 +34,9 @@ def mel_filterbank(sr, n_fft, n_mels):
 
     # 将Hz频率转换为FFT bin索引
     bins = torch.floor((n_fft + 1) * hz_points / sr).long()
+    # 确保索引不超过 n_fft // 2
+    bins = torch.clamp(bins, max=n_fft // 2 - 1)
+    
     filterbank = torch.zeros((n_mels, int((n_fft // 2))))
 
     # 构建三角滤波器
@@ -44,7 +47,8 @@ def mel_filterbank(sr, n_fft, n_mels):
         for j in range(left, center):
             filterbank[i - 1, j] = (j - left) / (center - left)
         for j in range(center, right):
-            filterbank[i - 1, j] = (right - j) / (right - center)
+            if j < filterbank.shape[1]:
+                filterbank[i - 1, j] = (right - j) / (right - center)
 
     return filterbank
 
@@ -66,13 +70,13 @@ def dct(x, num_ceps):
 def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=13, device="cuda:0"):
     """
     计算MFCC特征
-    signal: 输入音频信号
-    sr: 采样率
+    signal:    输入音频信号
+    sr:        采样率
     frame_len: 帧长
-    hop_len: 帧移
-    n_mels: Mel滤波器个数
-    n_ceps: MFCC系数个数
-    :return: MFCC特征矩阵
+    hop_len:   帧移
+    n_mels:    Mel滤波器个数
+    n_ceps:    MFCC系数个数
+    :return:   MFCC特征矩阵
     """
     # 预加重pre-Emphasis
     # signal[i] = signal[i] - alpha * signal[i-1]
