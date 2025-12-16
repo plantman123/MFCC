@@ -2,6 +2,9 @@ import torch
 
 
 def compute_sim(mfcc1:torch.Tensor, mfcc2:torch.Tensor, mode="DTW"):
+    """
+    相似度计算函数，返回值越小说明两种特征越相似
+    """
     sim = None
     if mode == "DTW":
         from fastdtw import fastdtw
@@ -11,7 +14,7 @@ def compute_sim(mfcc1:torch.Tensor, mfcc2:torch.Tensor, mode="DTW"):
 
     elif mode == "cosine":
         from scipy.spatial.distance import cosine
-        sim = 1 - cosine(mfcc1.flatten(), mfcc2.flatten())
+        sim = cosine(mfcc1.flatten(), mfcc2.flatten())
 
     elif mode == "l2":
         import numpy as np
@@ -20,4 +23,5 @@ def compute_sim(mfcc1:torch.Tensor, mfcc2:torch.Tensor, mode="DTW"):
     else:
         print("Invalid sim mode.")
         exit(1)
+        
     return sim
