@@ -164,7 +164,7 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
                 exit(1)
 
             all_cnt += 1
-            print(f"[{idx+1}/{len(test_data)}] test finish, testfile={test_feature_dct.get('filename')}, target dict is:")
+            print(f"[{idx+1}/{len(test_data)}] test finish, testfile={test_feature_dct.get('filename')}")
             print(f"now accuracy is {right_cnt/all_cnt}")
 
     return right_cnt / all_cnt
