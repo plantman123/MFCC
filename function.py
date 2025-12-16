@@ -1,6 +1,5 @@
 import scipy.io.wavfile
 import pandas as pd
-import numpy as np
 import torch
 import os
 from dsp import mfcc
