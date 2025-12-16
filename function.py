@@ -1,36 +1,113 @@
 import scipy.io.wavfile
+import pandas as pd
 import numpy as np
 import torch
 import os
 from dsp import mfcc
+from similarity import compute_sim
 
 
-def features_extract(data_path, savepath, frame_time=0.025, hop_time=0.010):
+def get_target(filename:str):
+    """
+    从文件名中提取对应的类别分类target
+    """
+    idx = filename.find('.')
+    for i in reversed(range(0, idx)):
+        if filename[i] == '-':
+            target = filename[i+1: idx]
+            return target
+    return None
+
+
+def load_esc50(datapath:str="./data/ESC-50-master/meta/esc50.csv"):
+    """
+    加载数据并划分
+    fold1-4为数据库，fold5为需要分类的数据
+    """
+    all_data = pd.read_csv(datapath)
+    filenames = all_data.get("filename")
+    audio_data = []
+    test_data = []
+    for filename in filenames:
+        if filename[0] == '5':
+            test_data.append(filename[:-4]+".pt")
+        else:
+            audio_data.append(filename[:-4]+".pt")
+    
+    # audio_data、test_data后缀为.pt，filenames后缀为.wav
+    return audio_data, test_data, filenames
+    
+
+def features_extract(audio_data:list, savepath:str, frame_time=0.025, hop_time=0.010, data_path="./data/ESC-50-master/audio"):
     """ 
     提取所有对比数据集的MFCC特征并保存
+    audio_data: 所有需要进行mfcc特征提取的文件名list
     data_path:  ESC-50-master数据集位置 
     frame_time: 帧长的一段时间
     hop_time:   帧移的一段时间
     savepath:   npz数据保存路径
     """
-    audio_data = []
-    for audio in reversed(os.listdir(data_path)):
-        if audio[0] == '5':
-            break
-        audio_data.append(audio)
-    
     for idx, audio in enumerate(audio_data):
         audio_path = os.path.join(data_path, audio)
         sr, signal = scipy.io.wavfile.read(audio_path)
         frame_len = int(frame_time * sr)
         hop_len = int(hop_time * sr)
         norm_feature = mfcc(signal, sr, frame_len, hop_len)
-        savename = os.path.join(savepath, audio[:-3]+"pt")
+        savename = os.path.join(savepath, audio[:-4]+".pt")
         torch.save({ 
                 "feature": norm_feature.detach().cpu(),
+                "filename": audio[:-4]+".pt",
                 "fold": audio[0],
+                "target": get_target(audio),
             },
             savename,
         )
-        print(f"[{idx+1}/{len(audio_data)}]  audio: {audio}: MFCC feature save to {savename}")
+        print(f"[{idx+1}/{len(audio_data)}] audio: {audio}: MFCC feature save to {savename}")
     return True
+
+
+def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, device="cuda:0", sim_mode="DTW"):
+    """
+    评估函数，使用已经计算好的特征获取fold5中对应的target，与真实target对比打分
+    test_data:  
+    audio_data:
+    frame_time:
+    hop_time:   
+    """
+    # 加载保存的mfcc特征，并保存到数据库中用于后续对比
+    audio_features = []
+    for audio_filename in audio_data:
+        audio_feature_path = os.path.join(
+            f"./features/frame_time={frame_time}_hop_time={hop_time}", 
+            audio_filename)
+        audio_features.append(torch.load(audio_feature_path, map_location="cpu"))
+
+    # 加载需要测试分类的mmfcc特征
+    topk_dct = {}
+    all_cnt = 0
+    right_cnt = 0
+    for idx, test_filename in enumerate(test_data):
+        topk_dct[test_filename] = []
+        test_feature_path = os.path.join(
+            "./features/frame_time={frame_time}_hop_time={hop_time}", 
+            test_filename)
+        test_feature_dct = torch.load(test_feature_path,  map_location="cpu")
+        test_target = test_feature_dct.get("target")
+        test_feature = test_feature_dct.get("feature")
+
+        # 最终的相似度得分list，每一项为一个元组，第一项为traget，第二项为相似度score
+        score_list = []  
+        for audio_feature_dct in audio_features:
+            audio_target = audio_feature_dct.get("target")
+            audio_feature = audio_feature_dct.get("feature")
+            score_list.append((audio_target, compute_sim(audio_feature, test_feature, sim_mode)))
+
+        score_list = sorted(score_list, key=lambda x: x[1])[:k]
+        if score_list[0][0] == test_target:
+            right_cnt += 1
+        all_cnt += 1
+
+        print(f"[{idx+1}/{len(test_data)}] test finish, now accuracy is {right_cnt/all_cnt}")
+
+    return right_cnt / all_cnt
+
