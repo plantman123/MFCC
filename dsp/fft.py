@@ -3,6 +3,9 @@ import numpy as np
 
 
 def fft_loop(x, device="cuda:0"):
+    """
+    fft循环实现，使用gpu加速
+    """
     if not isinstance(x, torch.Tensor):
         x = torch.tensor(x)
     x = x.to(torch.complex64)
