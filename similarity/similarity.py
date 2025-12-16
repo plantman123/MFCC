@@ -20,8 +20,9 @@ def compute_sim(mfcc1:torch.Tensor, mfcc2:torch.Tensor, mode="DTW"):
         import numpy as np
         dist = np.linalg.norm(np.array(mfcc1-mfcc2), ord='fro')
         sim = dist
+        
     else:
         print("Invalid sim mode.")
         exit(1)
-        
+
     return sim
