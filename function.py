@@ -81,10 +81,11 @@ def features_extract(audio_data:list, savepath:str, frame_time=0.025, hop_time=0
     return True
 
 
-def classification(score_list:list, alpha:float=1.0, beta:float=1.0, lambd:float=0.5, eps:float=1e-8):
+def classification(score_list:list, alpha:float=2.8, beta:float=3.4, lambd:float=0.77, eps:float=1e-8):
     """
-    根据得到的结果进行最后的分类
+    分类函数：根据得到的结果进行最后的分类
     score_list: 结果列表，每一项为一个元组，第一项为target，第二项为dis-score
+    其余参数为超参，最优超参有optimize-hyperparameters获取
     """
     min_dist = min(score_list, key=lambda x: x[1])[1]
     norm_list = [(t, d / (min_dist + eps)) for t, d in score_list]
@@ -105,7 +106,7 @@ def classification(score_list:list, alpha:float=1.0, beta:float=1.0, lambd:float
     return pred_class, score_dct
 
 
-def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, sim_mode="DTW", threads=128):
+def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, sim_mode="DTW", threads=128, test_mode="hit"):
     """
     评估函数，使用已经计算好的特征获取fold5中对应的target，与真实target对比打分
     test_data:  测试文件名lis
@@ -145,13 +146,25 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
             score_list = pool.starmap(_compute_score_worker, args)
 
             score_list = sorted(score_list, key=lambda x: x[1])[:k]
-            pred_target, tar_dct = classification(score_list)
             
-            if pred_target == test_target:
-                right_cnt += 1
+            
+            if test_mode == "score":
+                pred_target, tar_dct = classification(score_list)
+                if pred_target == test_target:
+                    right_cnt += 1
+
+            elif test_mode == "hit":
+                for item in score_list:
+                    if item[0] == test_target:
+                        right_cnt += 1
+                        break
+            
+            else:
+                print("Invalid evaluate mode.")
+                exit(1)
+
             all_cnt += 1
             print(f"[{idx+1}/{len(test_data)}] test finish, testfile={test_feature_dct.get('filename')}, target dict is:")
-            print(tar_dct)
             print(f"now accuracy is {right_cnt/all_cnt}")
 
     return right_cnt / all_cnt
