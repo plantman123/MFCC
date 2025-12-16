@@ -5,6 +5,20 @@ import torch
 import os
 from dsp import mfcc
 from similarity import compute_sim
+import multiprocessing
+
+
+_global_audio_features = None
+
+def _init_worker(audio_features):
+    global _global_audio_features
+    _global_audio_features = audio_features
+
+def _compute_score_worker(idx, test_feature, sim_mode):
+    target_dct = _global_audio_features[idx]
+    audio_target = target_dct.get("target")
+    audio_feature = target_dct.get("feature")
+    return (audio_target, compute_sim(audio_feature, test_feature, sim_mode))
 
 
 def get_target(filename:str):
@@ -66,15 +80,18 @@ def features_extract(audio_data:list, savepath:str, frame_time=0.025, hop_time=0
     return True
 
 
-def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, device="cuda:0", sim_mode="DTW"):
+def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, sim_mode="DTW", threads=32):
     """
     评估函数，使用已经计算好的特征获取fold5中对应的target，与真实target对比打分
-    test_data:  
-    audio_data:
-    frame_time:
-    hop_time:   
+    test_data:  测试文件名lis
+    audio_data: 数据库文件名list
+    frame_time: 帧长的一段时间
+    hop_time:   帧移的一段时间
+    k:          最终判断正误的范围
+    sim_mode:   相似度函数
+    threads:    并行计算线程数
     """
-    # 加载保存的mfcc特征，并保存到数据库中用于后续对比
+    # 加载保存的mfcc特征并保存
     audio_features = []
     for audio_filename in audio_data:
         audio_feature_path = os.path.join(
@@ -86,28 +103,30 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
     topk_dct = {}
     all_cnt = 0
     right_cnt = 0
-    for idx, test_filename in enumerate(test_data):
-        topk_dct[test_filename] = []
-        test_feature_path = os.path.join(
-            "./features/frame_time={frame_time}_hop_time={hop_time}", 
-            test_filename)
-        test_feature_dct = torch.load(test_feature_path,  map_location="cpu")
-        test_target = test_feature_dct.get("target")
-        test_feature = test_feature_dct.get("feature")
+    num_workers = min(multiprocessing.cpu_count(), threads)
+    
+    with multiprocessing.Pool(processes=num_workers, initializer=_init_worker, initargs=(audio_features,)) as pool:
+        for idx, test_filename in enumerate(test_data):
+            topk_dct[test_filename] = []
+            test_feature_path = os.path.join(
+                f"./features/frame_time={frame_time}_hop_time={hop_time}", 
+                test_filename)
+            test_feature_dct = torch.load(test_feature_path,  map_location="cpu")
+            test_target = test_feature_dct.get("target")
+            test_feature = test_feature_dct.get("feature")
 
-        # 最终的相似度得分list，每一项为一个元组，第一项为traget，第二项为相似度score
-        score_list = []  
-        for audio_feature_dct in audio_features:
-            audio_target = audio_feature_dct.get("target")
-            audio_feature = audio_feature_dct.get("feature")
-            score_list.append((audio_target, compute_sim(audio_feature, test_feature, sim_mode)))
+            # 最终的相似度得分list，每一项为一个元组，第一项为traget，第二项为相似度score
+            args = [(i, test_feature, sim_mode) for i in range(len(audio_features))]
+            score_list = pool.starmap(_compute_score_worker, args)
 
-        score_list = sorted(score_list, key=lambda x: x[1])[:k]
-        if score_list[0][0] == test_target:
-            right_cnt += 1
-        all_cnt += 1
-
-        print(f"[{idx+1}/{len(test_data)}] test finish, now accuracy is {right_cnt/all_cnt}")
+            score_list = sorted(score_list, key=lambda x: x[1])[:k]
+            for item in score_list:
+                if item[0] == test_target:
+                    right_cnt += 1
+                    break
+            all_cnt += 1
+            print(f"[{idx+1}/{len(test_data)}] test finish, testfile={test_feature_dct.get('filename')}, best_tar={score_list[0][0]}")
+            print(f"now accuracy is {right_cnt/all_cnt}")
 
     return right_cnt / all_cnt
 
