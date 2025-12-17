@@ -3,7 +3,7 @@ import torch
 
 def compute_sim(mfcc1:torch.Tensor, mfcc2:torch.Tensor, mode="DTW"):
     """
-    相似度计算函数，返回值越小说明两种特征越相似
+    相似度计算函数，返回值越小说明两种特征越相似（距离）
     """
     sim = None
     if mode == "DTW":
