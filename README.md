@@ -13,8 +13,7 @@
 │   ├── stft.py             # 短时傅里叶变换实现
 │   └─── mfcc.py            # MFCC特征提取函数
 ├── features/               # 特征存储/读取文件夹
-├── results_hit/            # top-N命中评估
-├── results_score/          # 打分评估
+├── results/                # top-N命中评估与score评估结果
 ├── similarity/
 │   └── similarity.py       # 相似度函数
 ├── function.py             # 辅助函数
