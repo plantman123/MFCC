@@ -1,0 +1,7 @@
+Experiment Settings:
+Frame Time: 0.04
+Hop Time: 0.02
+Similarity Mode: cosine
+K: 20
+------------------------------
+Accuracy: 0.5325
