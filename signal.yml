@@ -99,4 +99,3 @@ dependencies:
       - typing-extensions==4.15.0
       - tzdata==2025.3
       - urllib3==2.6.2
-prefix: /home/zikun_he/miniforge3/envs/signal
