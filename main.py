@@ -32,9 +32,9 @@ def main(args):
     if len(os.listdir(savepath))==2000:
         respath = f"frame_time={args.frame_time}_hop_time={args.hop_time}_k={args.k}_sim={args.sim_mode}.txt"
 
-        if not os.path.exists(f"./results_{args.test_mode}_top{args.k}"):
-            os.makedirs(f"./results_{args.test_mode}_top{args.k}")
-        if os.path.exists(os.path.join(f"./results_{args.test_mode}_top{args.k}", respath)):
+        if not os.path.exists(f"./results/results_{args.test_mode}_top{args.k}"):
+            os.makedirs(f"./results/results_{args.test_mode}_top{args.k}")
+        if os.path.exists(os.path.join(f"./results/results_{args.test_mode}_top{args.k}", respath)):
             print("Eval data saved.")
             return True
         
@@ -49,7 +49,7 @@ def main(args):
             test_mode=args.test_mode,
         )
 
-        with open(os.path.join(f"./results_{args.test_mode}_top{args.k}", respath), "w") as resfile:
+        with open(os.path.join(f"./results/results_{args.test_mode}_top{args.k}", respath), "w") as resfile:
             resfile.write(f"Experiment Settings:\n")
             resfile.write(f"Frame Time: {args.frame_time}\n")
             resfile.write(f"Hop Time: {args.hop_time}\n")
@@ -58,7 +58,7 @@ def main(args):
             resfile.write("-" * 30 + "\n")
             resfile.write(f"Accuracy: {accuracy:.4f}\n")
         
-        print(f"Results saved to {os.path.join(f'./results_{args.test_mode}_top{args.k}', respath)}")
+        print(f"Results saved to {os.path.join(f'./results/results_{args.test_mode}_top{args.k}', respath)}")
 
 
 if __name__ == "__main__":
