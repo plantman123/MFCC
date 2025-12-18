@@ -1,7 +1,0 @@
-Experiment Settings:
-Frame Time: 0.025
-Hop Time: 0.01
-Similarity Mode: DTW
-K: 10
-------------------------------
-Accuracy: 0.2425
