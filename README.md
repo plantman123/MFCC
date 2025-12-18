@@ -43,7 +43,7 @@ python3 main.py --frame_time 0.025 --hop_time 0.010 --sim_mode DTW --k 5
 ```
 ---
 
-## 实验结果 (Hit-Top10 & Score-Top10)
+## 实验结果 (Hit & Score)
 
 ### 结果展示
 本实验在 ESC-50 数据集上进行，对比了不同相似度度量方法在不同帧长([40, 25, 15]ms)和帧移([20, 10, 5]ms)下的准确率表现。
