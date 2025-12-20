@@ -2,7 +2,7 @@
 
 ## 项目函数结构与使用说明
 
-本项目([github链接](https://github.com/plantman123/MFCC.git))实现了一个基于 MFCC 特征和多种相似度度量（DTW, Cosine, L2）的音频分类系统，主要针对 ESC-50 数据集。项目包含核心信号处理算法的手动实现（FFT, STFT, DCT）以及 CUDA 加速支持。
+[本项目](https://github.com/plantman123/MFCC.git)实现了一个基于 MFCC 特征和多种相似度度量（DTW, Cosine, L2）的音频分类系统，主要针对 ESC-50 数据集。项目包含核心信号处理算法的手动实现（FFT, STFT, DCT）以及 CUDA 加速支持。
 
 ### 文件结构
 
