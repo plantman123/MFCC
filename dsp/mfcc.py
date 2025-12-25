@@ -103,11 +103,10 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=1
     mel_energy = torch.where(mel_energy == 0, torch.tensor(1e-10, device=device), mel_energy)
     log_mel = torch.log(mel_energy)
 
-    # DCT提取MFCC特征
-    # 直接对整个 batch 进行 DCT
     mfcc_feature = dct(log_mel, n_ceps)
 
-    # 归一化
-    mfcc_norm = (mfcc_feature - torch.mean(mfcc_feature, dim=0) + 1e-8)
+    mean = torch.mean(mfcc_feature, dim=0)
+    std = torch.std(mfcc_feature, dim=0)
+    mfcc_norm = (mfcc_feature - mean) / (std + 1e-8)
     return mfcc_norm
 
