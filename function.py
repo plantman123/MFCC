@@ -18,8 +18,23 @@ def _init_worker(audio_features):
 def _compute_score_worker(idx, test_feature, sim_mode):
     target_dct = _global_audio_features[idx]
     audio_target = target_dct.get("target")
-    audio_feature = target_dct.get("feature")
+    audio_feature = _select_feature_representation(target_dct, sim_mode)
     return (audio_target, compute_sim(audio_feature, test_feature, sim_mode))
+
+
+def _select_feature_representation(sample_dct, sim_mode):
+    if sim_mode == "DTW":
+        return sample_dct.get("feature")
+    agg_feature = sample_dct.get("agg_feature")
+    if agg_feature is None:
+        feature = sample_dct.get("feature")
+        if feature is None:
+            return None
+        mean = torch.mean(feature, dim=0)
+        std = torch.std(feature, dim=0)
+        agg_feature = torch.cat([mean, std], dim=0)
+        sample_dct["agg_feature"] = agg_feature
+    return agg_feature
 
 
 def get_target(filename:str):
@@ -53,7 +68,7 @@ def load_esc50(datapath:str="./data/ESC-50-master/meta/esc50.csv"):
     return audio_data, test_data, filenames
     
 
-def features_extract(audio_data:list, savepath:str, frame_time=0.025, hop_time=0.010, data_path="./data/ESC-50-master/audio"):
+def features_extract(audio_data:list, savepath:str, frame_time=0.025, hop_time=0.010, n_mels=40, n_ceps=20, lifter=22, norm='cms', data_path="./data/ESC-50-master/audio"):
     """ 
     提取所有对比数据集的MFCC特征并保存
     audio_data: 所有需要进行mfcc特征提取的文件名list
@@ -67,10 +82,21 @@ def features_extract(audio_data:list, savepath:str, frame_time=0.025, hop_time=0
         sr, signal = scipy.io.wavfile.read(audio_path)
         frame_len = int(frame_time * sr)
         hop_len = int(hop_time * sr)
-        norm_feature = mfcc(signal, sr, frame_len, hop_len)
+        norm_feature, agg_feature = mfcc(
+            signal,
+            sr,
+            frame_len,
+            hop_len,
+            n_mels=n_mels,
+            n_ceps=n_ceps,
+            lifter_coeff=lifter,
+            norm=norm,
+            return_agg=True,
+        )
         savename = os.path.join(savepath, audio[:-4]+".pt")
         torch.save({ 
                 "feature": norm_feature.detach().cpu(),
+                "agg_feature": agg_feature.detach().cpu(),
                 "filename": audio[:-4]+".pt",
                 "fold": audio[0],
                 "target": get_target(audio),
@@ -106,7 +132,7 @@ def classification(score_list:list, alpha:float=2.8, beta:float=3.4, lambd:float
     return pred_class, score_dct
 
 
-def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, sim_mode="DTW", threads=128, test_mode="hit"):
+def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, sim_mode="DTW", threads=128, test_mode="hit", n_mels=40, n_ceps=20, lifter=22, norm='cms'):
     """
     评估函数，使用已经计算好的特征获取fold5中对应的target，与真实target对比打分
     test_data:  测试文件名lis
@@ -121,7 +147,7 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
     audio_features = []
     for audio_filename in audio_data:
         audio_feature_path = os.path.join(
-            f"./features/frame_time={frame_time}_hop_time={hop_time}", 
+            f"./features/frame_time={frame_time}_hop_time={hop_time}_n_mels={n_mels}_n_ceps={n_ceps}_lifter={lifter}_norm={norm}", 
             audio_filename)
         audio_features.append(torch.load(audio_feature_path, map_location="cpu"))
 
@@ -135,11 +161,11 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
         for idx, test_filename in enumerate(test_data):
             topk_dct[test_filename] = []
             test_feature_path = os.path.join(
-                f"./features/frame_time={frame_time}_hop_time={hop_time}", 
+                f"./features/frame_time={frame_time}_hop_time={hop_time}_n_mels={n_mels}_n_ceps={n_ceps}_lifter={lifter}_norm={norm}", 
                 test_filename)
             test_feature_dct = torch.load(test_feature_path,  map_location="cpu")
             test_target = test_feature_dct.get("target")
-            test_feature = test_feature_dct.get("feature")
+            test_feature = _select_feature_representation(test_feature_dct, sim_mode)
 
             # 最终的相似度得分list，每一项为一个元组，第一项为traget，第二项为相似度score
             args = [(i, test_feature, sim_mode) for i in range(len(audio_features))]
