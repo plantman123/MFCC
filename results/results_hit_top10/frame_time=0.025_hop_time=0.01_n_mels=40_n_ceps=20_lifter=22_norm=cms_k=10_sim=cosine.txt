@@ -1,7 +1,11 @@
 Experiment Settings:
 Frame Time: 0.025
 Hop Time: 0.01
+N Mels: 40
+N Ceps: 20
+Lifter: 22
+Norm: cms
 Similarity Mode: cosine
-K: 20
+K: 10
 ------------------------------
-Accuracy: 0.5250
+Accuracy: 0.6500

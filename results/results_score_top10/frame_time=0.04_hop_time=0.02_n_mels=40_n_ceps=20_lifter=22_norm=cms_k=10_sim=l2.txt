@@ -1,7 +1,11 @@
 Experiment Settings:
 Frame Time: 0.04
 Hop Time: 0.02
-Similarity Mode: DTW
+N Mels: 40
+N Ceps: 20
+Lifter: 22
+Norm: cms
+Similarity Mode: l2
 K: 10
 ------------------------------
-Accuracy: 0.2300
+Accuracy: 0.3175
