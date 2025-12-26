@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
 from .stft import stft
 
 
@@ -67,7 +68,40 @@ def dct(x, num_ceps):
     return torch.matmul(x, dct_matrix.T)
 
 
-def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=13, device="cuda:0"):
+def compute_deltas(spec, n=2):
+    """
+    计算Delta特征
+    spec: (frames, coefficients)
+    n: 窗口大小 (N)
+    """
+    rows, cols = spec.shape
+    deltas = torch.zeros(rows, cols, device=spec.device)
+    
+    padded = F.pad(spec.transpose(0, 1), (n, n), mode='replicate').transpose(0, 1)
+    
+    denom = 2 * sum([i**2 for i in range(1, n + 1)])
+    
+    for i in range(n):
+        idx = i + 1
+        deltas += idx * (padded[n+idx : n+idx+rows] - padded[n-idx : n-idx+rows])
+        
+    return deltas / denom
+
+
+def lifter(cepstra, L=22):
+    """
+    Apply a cepstral lifter the the matrix of cepstra. This has the effect of
+    increasing the magnitude of the high frequency DCT coeffs.
+    """
+    if L <= 0:
+        return cepstra
+    n_ceps = cepstra.shape[1]
+    n = torch.arange(n_ceps, device=cepstra.device)
+    lift = 1 + (L / 2.0) * torch.sin(np.pi * n / L)
+    return cepstra * lift
+
+
+def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=20, lifter_coeff=22, norm='cms', return_agg=False, device="cuda:0"):
     """
     计算MFCC特征
     signal:    输入音频信号
@@ -76,6 +110,9 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=1
     hop_len:   帧移
     n_mels:    Mel滤波器个数
     n_ceps:    MFCC系数个数
+    lifter_coeff: 倒谱提升系数
+    norm:      归一化方式 'cmvn' (均值方差), 'cms' (仅均值), 'none'
+    return_agg: 是否额外返回全局统计特征
     :return:   MFCC特征矩阵
     """
     # 预加重pre-Emphasis
@@ -103,10 +140,38 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.9, n_mels=26, n_ceps=1
     mel_energy = torch.where(mel_energy == 0, torch.tensor(1e-10, device=device), mel_energy)
     log_mel = torch.log(mel_energy)
 
+    # DCT提取MFCC特征
+    # 直接对整个 batch 进行 DCT
     mfcc_feature = dct(log_mel, n_ceps)
+    
+    # 倒谱提升
+    mfcc_feature = lifter(mfcc_feature, lifter_coeff)
 
-    mean = torch.mean(mfcc_feature, dim=0)
-    std = torch.std(mfcc_feature, dim=0)
-    mfcc_norm = (mfcc_feature - mean) / (std + 1e-8)
+    # 计算一阶差分和二阶差分
+    delta1 = compute_deltas(mfcc_feature)
+    delta2 = compute_deltas(delta1)
+    
+    # 拼接特征
+    mfcc_feature = torch.cat([mfcc_feature, delta1, delta2], dim=1)
+
+    # 聚合特征用于全局比较（在归一化之前计算）
+    raw_feature = mfcc_feature.clone()
+
+    if norm == 'cmvn':
+        mean = torch.mean(mfcc_feature, dim=0)
+        std = torch.std(mfcc_feature, dim=0)
+        mfcc_norm = (mfcc_feature - mean) / (std + 1e-8)
+    elif norm == 'cms':
+        mean = torch.mean(mfcc_feature, dim=0)
+        mfcc_norm = mfcc_feature - mean
+    else:
+        mfcc_norm = mfcc_feature
+
+    agg_mean = torch.mean(raw_feature, dim=0)
+    agg_std = torch.std(raw_feature, dim=0)
+    agg_feature = torch.cat([agg_mean, agg_std], dim=0)
+
+    if return_agg:
+        return mfcc_norm, agg_feature
     return mfcc_norm
 
