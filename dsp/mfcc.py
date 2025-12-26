@@ -35,7 +35,6 @@ def mel_filterbank(sr, n_fft, n_mels):
 
     # 将Hz频率转换为FFT bin索引
     bins = torch.floor((n_fft + 1) * hz_points / sr).long()
-    # 确保索引不超过 n_fft // 2
     bins = torch.clamp(bins, max=n_fft // 2 - 1)
     
     filterbank = torch.zeros((n_mels, int((n_fft // 2))))
@@ -76,15 +75,11 @@ def compute_deltas(spec, n=2):
     """
     rows, cols = spec.shape
     deltas = torch.zeros(rows, cols, device=spec.device)
-    
     padded = F.pad(spec.transpose(0, 1), (n, n), mode='replicate').transpose(0, 1)
-    
     denom = 2 * sum([i**2 for i in range(1, n + 1)])
-    
     for i in range(n):
         idx = i + 1
         deltas += idx * (padded[n+idx : n+idx+rows] - padded[n-idx : n-idx+rows])
-        
     return deltas / denom
 
 
@@ -92,8 +87,6 @@ def lifter(cepstra, L=22):
     """
     对倒谱矩阵应用倒谱提升器
     """
-    if L <= 0:
-        return cepstra
     n_ceps = cepstra.shape[1]
     n = torch.arange(n_ceps, device=cepstra.device)
     lift = 1 + (L / 2.0) * torch.sin(np.pi * n / L)
@@ -122,7 +115,6 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=
         signal = torch.tensor(signal)
     signal = signal.to(device)
 
-    # stft(同时进行加窗分帧)
     # 传递 device 参数给 stft
     spec = stft(signal, frame_len, hop_len, device=device)
 
