@@ -18,7 +18,16 @@ def compute_sim(mfcc1:torch.Tensor, mfcc2:torch.Tensor, mode="DTW"):
 
     elif mode == "l2":
         import numpy as np
-        dist = np.linalg.norm(np.array(mfcc1-mfcc2), ord='fro')
+        diff = mfcc1 - mfcc2
+        if isinstance(diff, torch.Tensor):
+            diff = diff.detach().cpu().numpy()
+        else:
+            diff = np.asarray(diff)
+
+        if diff.ndim <= 1:
+            dist = np.linalg.norm(diff)
+        else:
+            dist = np.linalg.norm(diff, ord='fro')
         sim = dist
         
     else:
