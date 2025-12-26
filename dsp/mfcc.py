@@ -111,8 +111,7 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=
     n_ceps:    MFCC系数个数
     lifter_coeff: 倒谱提升系数
     norm:      归一化方式 'cmvn' (均值方差), 'cms' (仅均值), 'none'
-    return_agg: 是否额外返回全局统计特征
-    :return:   MFCC特征矩阵
+    return:   MFCC特征矩阵
     """
     # 预加重pre-Emphasis
     # signal[i] = signal[i] - alpha * signal[i-1]
@@ -121,7 +120,6 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=
     # 数据预处理
     if not isinstance(signal, torch.Tensor):
         signal = torch.tensor(signal)
-    # 注意：.to() 不是原地操作，必须赋值回去
     signal = signal.to(device)
 
     # stft(同时进行加窗分帧)
@@ -140,7 +138,6 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=
     log_mel = torch.log(mel_energy)
 
     # DCT提取MFCC特征
-    # 直接对整个 batch 进行 DCT
     mfcc_feature = dct(log_mel, n_ceps)
     
     # 倒谱提升
@@ -152,9 +149,6 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=
     
     # 拼接特征
     mfcc_feature = torch.cat([mfcc_feature, delta1, delta2], dim=1)
-
-    # 聚合特征用于全局比较（在归一化之前计算）
-    raw_feature = mfcc_feature.clone()
 
     if norm == 'cmvn':
         mean = torch.mean(mfcc_feature, dim=0)
