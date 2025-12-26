@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import os
 from dsp import mfcc
-from similarity import compute_sim
+from distance import compute_dist
 import multiprocessing
 
 
@@ -19,7 +19,7 @@ def _compute_score_worker(idx, test_feature, sim_mode):
     target_dct = _global_audio_features[idx]
     audio_target = target_dct.get("target")
     audio_feature = _select_feature_representation(target_dct, sim_mode)
-    return (audio_target, compute_sim(audio_feature, test_feature, sim_mode))
+    return (audio_target, compute_dist(audio_feature, test_feature, sim_mode))
 
 
 def _select_feature_representation(sample_dct, sim_mode):
