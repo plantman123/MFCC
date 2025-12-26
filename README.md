@@ -1,4 +1,4 @@
-# 数字信号处理大作业任务一
+# 数字信号处理大作业TASK1
 
 ## 项目函数结构与使用说明
 
@@ -36,8 +36,8 @@
 
 **基本运行：**
 ```bash
-# 运行主程序，默认使用 DTW，k=5
-python3 main.py --frame_time 0.025 --hop_time 0.010 --sim_mode DTW --k 5
+# 运行主程序，默认使用 DTW，k=10
+python3 main.py --frame_time 0.025 --hop_time 0.010 --sim_mode DTW --k 10
 # 或 ./run.sh
 ```
 ---
