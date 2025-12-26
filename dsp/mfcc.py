@@ -90,8 +90,7 @@ def compute_deltas(spec, n=2):
 
 def lifter(cepstra, L=22):
     """
-    Apply a cepstral lifter the the matrix of cepstra. This has the effect of
-    increasing the magnitude of the high frequency DCT coeffs.
+    对倒谱矩阵应用倒谱提升器
     """
     if L <= 0:
         return cepstra
@@ -101,7 +100,7 @@ def lifter(cepstra, L=22):
     return cepstra * lift
 
 
-def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=20, lifter_coeff=22, norm='cms', return_agg=False, device="cuda:0"):
+def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=20, lifter_coeff=22, norm='cms', device="cuda:0"):
     """
     计算MFCC特征
     signal:    输入音频信号
@@ -167,11 +166,5 @@ def mfcc(signal, sr, frame_len, hop_len, alpha_emphasis=0.97, n_mels=40, n_ceps=
     else:
         mfcc_norm = mfcc_feature
 
-    agg_mean = torch.mean(raw_feature, dim=0)
-    agg_std = torch.std(raw_feature, dim=0)
-    agg_feature = torch.cat([agg_mean, agg_std], dim=0)
-
-    if return_agg:
-        return mfcc_norm, agg_feature
     return mfcc_norm
 
