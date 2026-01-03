@@ -107,7 +107,7 @@ def features_extract(audio_data:list, savepath:str, frame_time=0.025, hop_time=0
     return True
 
 
-def classification(score_list:list, alpha:float=2.8, beta:float=3.4, lambd:float=0.77, eps:float=1e-8):
+def classification_with_score(score_list:list, alpha:float=2.8, beta:float=3.4, lambd:float=0.77, eps:float=1e-8):
     """
     分类函数：根据得到的结果进行最后的分类
     score_list: 结果列表，每一项为一个元组，第一项为target，第二项为dis-score
@@ -190,7 +190,7 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
                 score_list = sorted(score_list, key=lambda x: x[1])[:k]
             
             if test_mode == "score":
-                pred_target, _ = classification(score_list)
+                pred_target, _ = classification_with_score(score_list)
                 if pred_target == test_target:
                     right_cnt += 1
 
