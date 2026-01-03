@@ -8,11 +8,12 @@ def compute_dist(mfcc1:torch.Tensor, mfcc2:torch.Tensor, mode="DTW"):
     """
     dist = 100
     if mode == "DTW":
-        # ?
         from fastdtw import fastdtw
         from scipy.spatial.distance import euclidean
-        distance, path = fastdtw(mfcc1, mfcc2, dist=euclidean)
-        dist = distance / len(path)
+        mfcc1 = mfcc1.detach().cpu().numpy()
+        mfcc2 = mfcc2.detach().cpu().numpy()
+        
+        dist, _ = fastdtw(mfcc1, mfcc2, dist=euclidean)
 
     elif mode == "cosine":
         from scipy.spatial.distance import cosine
