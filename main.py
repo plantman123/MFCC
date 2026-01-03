@@ -53,7 +53,7 @@ def main(args):
             args.frame_time, 
             args.hop_time, 
             k=args.k, 
-            sim_mode=args.sim_mode,
+            dist_mode=args.sim_mode,
             test_mode=args.test_mode,
             n_mels=args.n_mels,
             n_ceps=args.n_ceps,
