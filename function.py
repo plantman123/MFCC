@@ -15,15 +15,15 @@ def _init_worker(audio_features):
     global _global_audio_features
     _global_audio_features = audio_features
 
-def _compute_score_worker(idx, test_feature, sim_mode):
+def _compute_score_worker(idx, test_feature, dist_mode):
     target_dct = _global_audio_features[idx]
     audio_target = target_dct.get("target")
-    audio_feature = _select_feature_representation(target_dct, sim_mode)
-    return (audio_target, compute_dist(audio_feature, test_feature, sim_mode))
+    audio_feature = _select_feature_representation(target_dct, dist_mode)
+    return (audio_target, compute_dist(audio_feature, test_feature, dist_mode))
 
 
-def _select_feature_representation(sample_dct, sim_mode):
-    if sim_mode == "DTW":
+def _select_feature_representation(sample_dct, dist_mode):
+    if dist_mode == "DTW":
         return sample_dct.get("feature")
     agg_feature = sample_dct.get("agg_feature")
     if agg_feature is None:
@@ -132,7 +132,7 @@ def classification(score_list:list, alpha:float=2.8, beta:float=3.4, lambd:float
     return pred_class, score_dct
 
 
-def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, sim_mode="DTW", threads=128, test_mode="hit", n_mels=40, n_ceps=20, lifter=22, norm='cms'):
+def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, k:int=5, dist_mode="DTW", threads=128, test_mode="hit", n_mels=40, n_ceps=20, lifter=22, norm='cms'):
     """
     评估函数，使用已经计算好的特征获取fold5中对应的target，与真实target对比打分
     test_data:  测试文件名lis
@@ -140,7 +140,7 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
     frame_time: 帧长的一段时间
     hop_time:   帧移的一段时间
     k:          最终判断正误的范围
-    sim_mode:   相似度函数
+    dist_mode:   相似度函数
     threads:    并行计算线程数
     """
     # 加载保存的mfcc特征并保存
@@ -165,17 +165,32 @@ def evaluate(test_data:list, audio_data:list, frame_time:float, hop_time:float, 
                 test_filename)
             test_feature_dct = torch.load(test_feature_path,  map_location="cpu")
             test_target = test_feature_dct.get("target")
-            test_feature = _select_feature_representation(test_feature_dct, sim_mode)
 
-            # 最终的相似度得分list，每一项为一个元组，第一项为traget，第二项为相似度score
-            args = [(i, test_feature, sim_mode) for i in range(len(audio_features))]
-            score_list = pool.starmap(_compute_score_worker, args)
+            if dist_mode == "DTW":
+                # DTW情况：先使用l2粗排再使用DTW精排
+                test_feature = _select_feature_representation(test_feature_dct, "l2")
+                args = [(i, test_feature, "l2") for i in range(len(audio_features))]
+                score_list = pool.starmap(_compute_score_worker, args)
+                score_list_with_idx = list(enumerate(score_list))
+                top50_candidates = sorted(score_list_with_idx, key=lambda x: x[1][1])[:30]
+                top50_indices = [x[0] for x in top50_candidates]
 
-            score_list = sorted(score_list, key=lambda x: x[1])[:k]
+                # DTW精排
+                test_feature = _select_feature_representation(test_feature_dct, "DTW")
+                args = [(i, test_feature, "DTW") for i in top50_indices]
+                score_list = pool.starmap(_compute_score_worker, args)
+                score_list = sorted(score_list, key=lambda x: x[1])[:k]
             
+            else:
+                # 其他情况：直接使用对应的距离函数排序
+                test_feature = _select_feature_representation(test_feature_dct, dist_mode)
+                # 最终的相似度得分list，每一项为一个元组，第一项为traget，第二项为相似度score
+                args = [(i, test_feature, dist_mode) for i in range(len(audio_features))]
+                score_list = pool.starmap(_compute_score_worker, args)
+                score_list = sorted(score_list, key=lambda x: x[1])[:k]
             
             if test_mode == "score":
-                pred_target, tar_dct = classification(score_list)
+                pred_target, _ = classification(score_list)
                 if pred_target == test_target:
                     right_cnt += 1
 
